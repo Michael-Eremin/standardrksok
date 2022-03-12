@@ -121,7 +121,7 @@ async def make_msg_to_client(message_received: str) -> str:
 
 async def make_response_to_client(msg_from_vragi_vezde, msg_received):
     "Rtf"
-    if msg_from_vragi_vezde == 'МОЖНА РКСОК/1.0':
+    if msg_from_vragi_vezde == 'МОЖНА РКСОК/1.0\r\n\r\n':
         response_to_client = await make_msg_to_client(msg_received) 
     else:
         response_to_client = f'{msg_from_vragi_vezde}'
