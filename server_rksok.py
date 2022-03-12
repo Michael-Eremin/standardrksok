@@ -20,6 +20,7 @@ REQUEST_METHODS = {
 async def write_to_file (phone_book: str, data : str) -> str:
     """Writes the new name and phone number (or just the phone number if the name exists) to the phonebook file."""
     name_phone = json.dumps(data, ensure_ascii=False)
+    logger.info(f'name_phone:{name_phone!r}')
     async with aiofiles.open(phone_book, mode='w') as f:
         await f.write(name_phone)
 
@@ -32,6 +33,7 @@ async def read_from_file(name_file: str) -> str or None:
             string_from_file = json.loads(data_from_phone_book)
         else:
             string_from_file = None
+    logger.info(f'string_from_file:{string_from_file!r}')
     return string_from_file
 
 
@@ -48,6 +50,7 @@ async def get_phone_by_name(name: str, data: str) -> str:
             message_for_get_phone = 'НИНАШОЛ РКСОК/1.0\r\n\r\n'
     else:
         message_for_get_phone = 'НИНАШОЛ РКСОК/1.0\r\n\r\n'
+    logger.info(f'message_for_get_phone:{message_for_get_phone!r}')
     return message_for_get_phone
 
 
@@ -63,6 +66,7 @@ async def delete_name(name: str, data: str) -> str:
             message_for_delete_name = 'НИНАШОЛ РКСОК/1.0\r\n\r\n'
     else:
         message_for_delete_name = 'НИНАШОЛ РКСОК/1.0\r\n\r\n'
+    logger.info(f'message_for_delete_name:{message_for_delete_name!r}')
     return message_for_delete_name
 
 
@@ -79,15 +83,18 @@ async def write_name_phone(name: str, data_from_file: str, data_phone: str, \
             updated_phone = existing_phone + phone
             data_from_file[name] = updated_phone
             data_to_file = data_from_file
+            logger.info(f'data_to_file:{data_to_file!r}')
             await write_to_file('name_phone.json', data_to_file)
         else:
             data_from_file[name] = phone
             data_to_file = data_from_file
+            logger.info(f'data_to_file:{data_to_file!r}')
             await write_to_file('name_phone.json', data_to_file)
     else:
         new_dict = {}
         new_dict[name] = phone
         data_to_file = new_dict
+        logger.info(f'data_to_file:{data_to_file!r}')
         await write_to_file('name_phone.json', data_to_file)
 
 
@@ -108,6 +115,7 @@ async def make_msg_to_client(message_received: str) -> str:
         message_to_client = 'НОРМАЛДЫКС РКСОК/1.0\r\n\r\n'
     else:
         message_to_client = 'НИПОНЯЛ РКСОК/1.0\r\n\r\n'
+    logger.info(f'message_to_client:{message_to_client!r}')
     return message_to_client
 
 
@@ -117,20 +125,24 @@ async def make_response_to_client(msg_from_vragi_vezde, msg_received):
         response_to_client = await make_msg_to_client(msg_received) 
     else:
         response_to_client = f'{msg_from_vragi_vezde}'
-    
+    logger.info(f'response_to_client:{response_to_client!r}')
     return response_to_client
 
 
 async def send_reciev_vragi_vezde(message: str) ->str:
     """Sends a request, receives a response from the server 'vragi-vezde'."""
-    reader, writer = await asyncio.open_connection \
-        ('vragi-vezde.to.digital', 5000)
-    writer.write(message.encode(ENCODING))
-    data = await reader.read(1024)
-    msg_from_vragi_vezde = data.decode(ENCODING)
-    writer.close()
-    logger.info(f'From "vragi vezde":{msg_from_vragi_vezde}')
-    return msg_from_vragi_vezde
+    try:
+        reader, writer = await asyncio.open_connection \
+            ('vragi-vezde.to.digital', 51624)
+        writer.write(message.encode(ENCODING))
+        data = await reader.read(1024)
+        msg_from_vragi_vezde = data.decode(ENCODING)
+        writer.close()
+        logger.info(f'From "vragi vezde:{msg_from_vragi_vezde!r}')
+        return msg_from_vragi_vezde
+    except ConnectionRefusedError:
+        logger.debug('Unable to connect to server "vragi-vezde.to.digital".')
+    
 
 
 async def check_request_client(row_request: str) -> bool:
@@ -143,7 +155,9 @@ async def check_request_client(row_request: str) -> bool:
             correctness_request = False
     else:
         correctness_request = False
+    logger.info(f"correctness_request: {correctness_request!r}")
     return correctness_request
+    
 
 
 async def reciev_send_client(reader: str, writer: str) ->str:
@@ -167,7 +181,7 @@ async def reciev_send_client(reader: str, writer: str) ->str:
         msg_response = 'НИПОНЯЛ РКСОК/1.0\r\n\r\n'
     writer.write(msg_response.encode(ENCODING))
     await writer.drain()
-    logger.info(f"Send: {msg_response!r}")
+    logger.info(f"Send to client: {msg_response!r}")
     logger.info("Close the connection")
     writer.close()
 
@@ -175,10 +189,15 @@ async def reciev_send_client(reader: str, writer: str) ->str:
 async def main():
     "Rtf."
     server = await asyncio.start_server(reciev_send_client, \
-        '127.0.0.1', 8000)
+        '0.0.0.0', 8000)
     addrs = ', '.join(str(sock.getsockname()) for sock in server.sockets)
     logger.info(f'Serving on {addrs}')
     async with server:
         await server.serve_forever()
 
-asyncio.run(main())
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info('The server has been stopped by someone.')
