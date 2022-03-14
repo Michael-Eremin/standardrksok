@@ -162,13 +162,13 @@ async def check_request_client(row_request: str) -> bool:
 
 async def reciev_send_client(reader: str, writer: str) ->str:
     """Receives a request, if the request is correct, then sends it for verification to server 'vragi-vezde', after preparing a response to a request, send a response to the client."""
-    data = await reader.read(1024)
+    data = await reader.read(1024*1000)
     msg_received = data.decode(ENCODING)
     addr = writer.get_extra_info('peername')
     logger.info(f"Start received from {addr!r}: {msg_received!r}")
     if msg_received[-4:]!= '\r\n\r\n':
         while True:
-            data = await reader.read(1024)
+            data = await reader.read(1024*1000)
             msg_received += data.decode(ENCODING)
             if msg_received[-4:] == '\r\n\r\n':
                 break
