@@ -164,6 +164,8 @@ async def reciev_send_client(reader: str, writer: str) ->str:
     """Receives a request, if the request is correct, then sends it for verification to server 'vragi-vezde', after preparing a response to a request, send a response to the client."""
     data = await reader.read(1024)
     msg_received = data.decode(ENCODING)
+    addr = writer.get_extra_info('peername')
+    logger.info(f"Start received from {addr!r}: {msg_received!r}")
     if msg_received[-4:]!= '\r\n\r\n':
         while True:
             data = await reader.read(1024)
@@ -171,8 +173,7 @@ async def reciev_send_client(reader: str, writer: str) ->str:
             if msg_received[-4:] == '\r\n\r\n':
                 break
     else:
-        addr = writer.get_extra_info('peername')
-        logger.info(f"Received from {addr!r}: {msg_received!r}")
+        logger.info(f"Final received from {addr!r}: {msg_received!r}")
     if await check_request_client(msg_received):
         msg_to_vragi_vezde = f'АМОЖНА? РКСОК/1.0\r\n{msg_received}'
         msg_from_vragi_vezde =  await send_reciev_vragi_vezde(msg_to_vragi_vezde)
