@@ -1,4 +1,4 @@
-"""Server for receiving requests and sending responses to the client according to the RKSOK standard."""
+"""Server for receiving requests and sending responses to the client according to the RKSOK standard 'РКСОК/1.0'."""
 import asyncio
 import re
 import json
@@ -40,7 +40,7 @@ async def read_from_file(name_file: str) -> str or None:
 async def get_phone_by_name(name: str, data: str) -> str:
     """Gets a phone from the phonebook."""
     if data:
-        if name in data:    
+        if name in data:
             phone = list(data[name])
             phone_to_msg = ''
             for data_phone in phone:
@@ -73,11 +73,13 @@ async def delete_name(name: str, data: str) -> str:
 async def write_name_phone(name: str, data_from_file: str, data_phone: str, \
     length_data: int) -> str:
     """Writes a new name with a phone number or a new phone number with an existing name in the phone book"""
+    #Gathering all request phones into a tuple.
     phone = ()
     for data in data_phone[1:(length_data-2)]:
         if data:
             phone += (data,)
     if data_from_file:
+        #If the name is in the phone book, then we change the existing phone to a new phone.
         if name in data_from_file:
             data_from_file[name] = phone
             data_to_file = data_from_file
@@ -89,6 +91,7 @@ async def write_name_phone(name: str, data_from_file: str, data_phone: str, \
             logger.info(f'data_to_file:{data_to_file!r}')
             await write_to_file('name_phone.json', data_to_file)
     else:
+        #For the first request 'write_name_phone'.
         new_dict = {}
         new_dict[name] = phone
         data_to_file = new_dict
@@ -97,7 +100,7 @@ async def write_name_phone(name: str, data_from_file: str, data_phone: str, \
 
 
 async def make_msg_to_client(message_received: str) -> str:
-    "Reads the request, prepares a response to the client."
+    "Reads the request, creats a response to the client."
     name_for_phone = re.split(r' ', message_received.split(PROTOCOL)[0], \
         maxsplit = 1)[-1].strip().upper()
     data_from_file = await read_from_file('name_phone.json')
@@ -106,6 +109,7 @@ async def make_msg_to_client(message_received: str) -> str:
     elif message_received.split()[0] == "УДОЛИ":
         message_to_client = await delete_name(name_for_phone, data_from_file)
     elif message_received.split()[0] == "ЗОПИШИ":
+        #List of request data that comes after the Protocol.
         data_phone = re.split(r'\r\n', message_received.split(PROTOCOL)[1])
         length_data = len(data_phone)
         await write_name_phone(name_for_phone, data_from_file, data_phone, \
@@ -118,7 +122,7 @@ async def make_msg_to_client(message_received: str) -> str:
 
 
 async def make_response_to_client(msg_from_vragi_vezde, msg_received):
-    "Rtf"
+    "If the 'vragi-vezde.to.digital' server allowed the response, then we produce a full response. If the server received a refusal, then instead of a response, we send only a refusal."
     if msg_from_vragi_vezde == 'МОЖНА РКСОК/1.0\r\n\r\n':
         response_to_client = await make_msg_to_client(msg_received) 
     else:
@@ -144,7 +148,7 @@ async def send_reciev_vragi_vezde(message: str) ->str:
 
 
 async def check_request_client(row_request: str) -> bool:
-    """Checks the correctness of the received request."""
+    """Checks the correctness of the received request. Checks for the presence in the query string: Protocol Name, Protocol Method, the number of Name characters is not more than 30."""
     if PROTOCOL in row_request and row_request.split()[0] in REQUEST_METHODS:
         len_of_name = len(re.split(r' ', row_request.split(PROTOCOL)[0], maxsplit = 1)[-1].strip())
         if 0 < len_of_name <= 30:
@@ -160,24 +164,29 @@ async def check_request_client(row_request: str) -> bool:
 
 async def reciev_send_client(reader: str, writer: str) ->str:
     """Receives a request, if the request is correct, then sends it for verification to server 'vragi-vezde', after preparing a response to a request, send a response to the client."""
-    data = await reader.read(1024*1000)
-    msg_received = data.decode(ENCODING)
+    data = await reader.read(1024)
+    #We get the first part of the request.                             
+    msg_received = data.decode(ENCODING)                                       
     addr = writer.get_extra_info('peername')
     logger.info(f"Start received from {addr!r}: {msg_received!r}")
+    #If there is no end value '\r\n\r\n' in the first part of the received request, continue reading the request.
     if msg_received[-4:]!= '\r\n\r\n':
         while True:
-            data = await reader.read(1024*1000)
+            data = await reader.read(1024)
             msg_received += data.decode(ENCODING)
+            #We continue to read the request, wait for the value of the end '\r\n\r\n' and insure against a broken connection.
             if not msg_received or msg_received[-4:] == '\r\n\r\n':
                 break
     else:
         logger.info(f"Final received from {addr!r}: {msg_received!r}")
-    if await check_request_client(msg_received):
-        msg_to_vragi_vezde = f'АМОЖНА? РКСОК/1.0\r\n{msg_received}'
-        msg_from_vragi_vezde =  await send_reciev_vragi_vezde(msg_to_vragi_vezde)
-        msg_response = await make_response_to_client(msg_from_vragi_vezde, msg_received)
-    else:
-        msg_response = 'НИПОНЯЛ РКСОК/1.0\r\n\r\n'
+        #If the request is correct, we produce a response 'msg_response'.
+        if await check_request_client(msg_received):
+            msg_to_vragi_vezde = f'АМОЖНА? РКСОК/1.0\r\n{msg_received}'
+            msg_from_vragi_vezde =  await send_reciev_vragi_vezde(msg_to_vragi_vezde)
+            msg_response = await make_response_to_client(msg_from_vragi_vezde, msg_received)
+        else:
+            msg_response = 'НИПОНЯЛ РКСОК/1.0\r\n\r\n'
+    #Submitting a response 'msg_response'.
     writer.write(msg_response.encode(ENCODING))
     await writer.drain()
     logger.info(f"Send to client: {msg_response!r}")
@@ -186,7 +195,7 @@ async def reciev_send_client(reader: str, writer: str) ->str:
 
 
 async def main():
-    "Rtf."
+    "Server start."
     server = await asyncio.start_server(reciev_send_client, \
         '0.0.0.0', 8000)
     addrs = ', '.join(str(sock.getsockname()) for sock in server.sockets)
