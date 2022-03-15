@@ -79,9 +79,7 @@ async def write_name_phone(name: str, data_from_file: str, data_phone: str, \
             phone += (data,)
     if data_from_file:
         if name in data_from_file:
-            existing_phone = tuple(data_from_file[name])
-            updated_phone = existing_phone + phone
-            data_from_file[name] = updated_phone
+            data_from_file[name] = phone
             data_to_file = data_from_file
             logger.info(f'data_to_file:{data_to_file!r}')
             await write_to_file('name_phone.json', data_to_file)
