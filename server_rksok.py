@@ -30,7 +30,7 @@ async def read_from_file(name_file: str) -> str or None:
     async with aiofiles.open(name_file, mode='r') as f:
         data_from_phone_book = await f.read()
         if data_from_phone_book:
-            string_from_file = json.loads(data_from_phone_book)
+            string_from_file = data_from_phone_book
         else:
             string_from_file = None
     logger.info(f'string_from_file:{string_from_file!r}')
@@ -103,7 +103,8 @@ async def make_msg_to_client(message_received: str) -> str:
     "Reads the request, creats a response to the client."
     name_for_phone = re.split(r' ', message_received.split(PROTOCOL)[0], \
         maxsplit = 1)[-1].strip().upper()
-    data_from_file = await read_from_file('name_phone.json')
+    data_from_name_phone = await read_from_file('name_phone.json')
+    data_from_file = json.loads(data_from_name_phone)
     if message_received.split()[0] == "ОТДОВАЙ":
         message_to_client = await get_phone_by_name(name_for_phone, data_from_file)
     elif message_received.split()[0] == "УДОЛИ":
