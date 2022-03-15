@@ -177,15 +177,14 @@ async def reciev_send_client(reader: str, writer: str) ->str:
             #We continue to read the request, wait for the value of the end '\r\n\r\n' and insure against a broken connection.
             if not msg_received or msg_received[-4:] == '\r\n\r\n':
                 break
+    logger.info(f"Final received from {addr!r}: {msg_received!r}")
+    #If the request is correct, we produce a response 'msg_response'.
+    if await check_request_client(msg_received):
+        msg_to_vragi_vezde = f'АМОЖНА? РКСОК/1.0\r\n{msg_received}'
+        msg_from_vragi_vezde =  await send_reciev_vragi_vezde(msg_to_vragi_vezde)
+        msg_response = await make_response_to_client(msg_from_vragi_vezde, msg_received)
     else:
-        logger.info(f"Final received from {addr!r}: {msg_received!r}")
-        #If the request is correct, we produce a response 'msg_response'.
-        if await check_request_client(msg_received):
-            msg_to_vragi_vezde = f'АМОЖНА? РКСОК/1.0\r\n{msg_received}'
-            msg_from_vragi_vezde =  await send_reciev_vragi_vezde(msg_to_vragi_vezde)
-            msg_response = await make_response_to_client(msg_from_vragi_vezde, msg_received)
-        else:
-            msg_response = 'НИПОНЯЛ РКСОК/1.0\r\n\r\n'
+        msg_response = 'НИПОНЯЛ РКСОК/1.0\r\n\r\n'
     #Submitting a response 'msg_response'.
     writer.write(msg_response.encode(ENCODING))
     await writer.drain()
