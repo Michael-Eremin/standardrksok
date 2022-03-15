@@ -170,7 +170,7 @@ async def reciev_send_client(reader: str, writer: str) ->str:
         while True:
             data = await reader.read(1024*1000)
             msg_received += data.decode(ENCODING)
-            if msg_received[-4:] == '\r\n\r\n':
+            if not msg_received or msg_received[-4:] == '\r\n\r\n':
                 break
     else:
         logger.info(f"Final received from {addr!r}: {msg_received!r}")
