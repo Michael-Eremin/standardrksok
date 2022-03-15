@@ -30,7 +30,7 @@ async def read_from_file(name_file: str) -> str or None:
     async with aiofiles.open(name_file, mode='r') as f:
         data_from_phone_book = await f.read()
         if data_from_phone_book:
-            string_from_file = data_from_phone_book
+            string_from_file = str(data_from_phone_book)
         else:
             string_from_file = None
     logger.info(f'string_from_file:{string_from_file!r}')
