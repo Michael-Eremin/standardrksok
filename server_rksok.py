@@ -5,7 +5,7 @@ import json
 import aiofiles
 from loguru import logger
 
-logger.add("debug.log", format="{time} {level} {message}", level="DEBUG", rotation="50 KB")
+logger.add("debug.log", format="{time} {level} {message}", level="DEBUG", rotation="12:00")
 
 
 #Basic constants
