@@ -37,10 +37,12 @@ async def read_from_file(name_file: str) -> str or None:
     return string_from_file
 
 
-async def get_phone_by_name(name: str, data: str) -> str:
+async def get_phone_by_name(name: str) -> str:
     """Gets a phone from the phonebook."""
+    data_from_name_phone = await read_from_file('name_phone.json')
+    data = json.loads(data_from_name_phone)
     if data:
-        if name in data:
+        if name in data:    
             phone = list(data[name])
             phone_to_msg = ''
             for data_phone in phone:
@@ -54,8 +56,10 @@ async def get_phone_by_name(name: str, data: str) -> str:
     return message_for_get_phone
 
 
-async def delete_name(name: str, data: str) -> str:
+async def delete_name(name: str) -> str:
     """Removes the name with phone from the phonebook."""
+    data_from_name_phone = await read_from_file('name_phone.json')
+    data = json.loads(data_from_name_phone)
     if data:
         if name in data:
             data_to_file = dict(data)
@@ -70,14 +74,16 @@ async def delete_name(name: str, data: str) -> str:
     return message_for_delete_name
 
 
-async def write_name_phone(name: str, data_from_file: str, data_phone: str, \
-    length_data: int) -> str:
+async def write_name_phone(name: str, data_phone: str) -> str:
     """Writes a new name with a phone number or a new phone number with an existing name in the phone book"""
     #Gathering all request phones into a tuple.
+    data_from_name_phone = await read_from_file('name_phone.json')
+    data_from_file = json.loads(data_from_name_phone)
+    length_data_phone = len(data_phone)
     phone = ()
-    for data in data_phone[1:(length_data-2)]:
-        if data:
-            phone += (data,)
+    for number in data_phone[1:(length_data_phone-2)]:
+        if number:
+            phone += (number,)
     if data_from_file:
         #If the name is in the phone book, then we change the existing phone to a new phone.
         if name in data_from_file:
@@ -99,33 +105,58 @@ async def write_name_phone(name: str, data_from_file: str, data_phone: str, \
         await write_to_file('name_phone.json', data_to_file)
 
 
-async def make_msg_to_client(message_received: str) -> str:
-    "Reads the request, creats a response to the client."
+async def parse_message_received(message_received: str) -> str:
+    """Get from the query string: method, name, phone."""
     name_for_phone = re.split(r' ', message_received.split(PROTOCOL)[0], \
-        maxsplit = 1)[-1].strip().upper()
-    data_from_name_phone = await read_from_file('name_phone.json')
-    data_from_file = json.loads(data_from_name_phone)
-    if message_received.split()[0] == "ОТДОВАЙ":
-        message_to_client = await get_phone_by_name(name_for_phone, data_from_file)
-    elif message_received.split()[0] == "УДОЛИ":
-        message_to_client = await delete_name(name_for_phone, data_from_file)
-    elif message_received.split()[0] == "ЗОПИШИ":
-        #List of request data that comes after the Protocol.
+         maxsplit = 1)[-1].strip().upper()
+    method = message_received.split()[0]
+    if method == "ЗОПИШИ":
         data_phone = re.split(r'\r\n', message_received.split(PROTOCOL)[1])
-        length_data = len(data_phone)
-        await write_name_phone(name_for_phone, data_from_file, data_phone, \
-            length_data)
-        message_to_client = 'НОРМАЛДЫКС РКСОК/1.0\r\n\r\n'
+        parse_tuple = (method, name_for_phone, data_phone)
     else:
-        message_to_client = 'НИПОНЯЛ РКСОК/1.0\r\n\r\n'
-    logger.info(f'message_to_client:{message_to_client!r}')
+        parse_tuple = (method, name_for_phone)
+    return parse_tuple
+
+
+async def make_msg_to_client_if_get(name: str) -> str:
+    """Make message if method in the request is 'ОТДОВАЙ'."""
+    message = await get_phone_by_name(name)
+    logger.info(f'message_to_client:{message!r}')
+    return message
+
+
+async def make_msg_to_client_if_delete(name: str) -> str:
+    """Make message to the client if method in the request is 'УДОЛИ'."""
+    message = await delete_name(name)
+    logger.info(f'message_to_client:{message!r}')
+    return message
+
+
+async def make_msg_to_client_if_write(name: str, data_phone) -> str:
+    """Make message to the client if method in the request is 'ЗОПИШИ'."""
+    await write_name_phone(name, data_phone)
+    message = 'НОРМАЛДЫКС РКСОК/1.0\r\n\r\n'
+    logger.info(f'message_to_client:{message!r}')
+    return message
+
+
+async def make_msg_to_client(parse_tuple: tuple) -> tuple:
+    """Prepares message to the client."""
+    method = parse_tuple[0]
+    if method == "ОТДОВАЙ":
+        message_to_client = await make_msg_to_client_if_get(parse_tuple[1])
+    elif method == "УДОЛИ":
+        message_to_client = await make_msg_to_client_if_delete(parse_tuple[1])
+    elif method == "ЗОПИШИ":
+        message_to_client = await make_msg_to_client_if_write(parse_tuple[1], parse_tuple[2])
     return message_to_client
 
 
 async def make_response_to_client(msg_from_vragi_vezde, msg_received):
     "If the 'vragi-vezde.to.digital' server allowed the response, then we produce a full response. If the server received a refusal, then instead of a response, we send only a refusal."
     if msg_from_vragi_vezde == 'МОЖНА РКСОК/1.0\r\n\r\n':
-        response_to_client = await make_msg_to_client(msg_received) 
+        parse_tuple = await parse_message_received(msg_received)
+        response_to_client = await make_msg_to_client(parse_tuple)
     else:
         response_to_client = f'{msg_from_vragi_vezde}'
     logger.info(f'response_to_client:{response_to_client!r}')
@@ -145,7 +176,6 @@ async def send_reciev_vragi_vezde(message: str) ->str:
         return msg_from_vragi_vezde
     except ConnectionRefusedError:
         logger.debug('Unable to connect to server "vragi-vezde.to.digital".')
-    
 
 
 async def check_request_client(row_request: str) -> bool:
@@ -160,7 +190,6 @@ async def check_request_client(row_request: str) -> bool:
         correctness_request = False
     logger.info(f"correctness_request: {correctness_request!r}")
     return correctness_request
-    
 
 
 async def reciev_send_client(reader: str, writer: str) ->str:
