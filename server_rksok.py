@@ -226,18 +226,17 @@ async def reciev_send_client(reader: asyncio.streams.StreamReader, writer):
     data = await reader.read(100)
     # Get the first part of the request.                             
     addr = writer.get_extra_info('peername')
+    logger.info(f"First 100 bytes received from {addr!r}{data}")    
     # Spam Protection
     if not await check_first_100_bytes(data):
-        msg_received = data.decode(config['SETTINGS']['ENCODING'])
-        logger.info(f"Received unknown protocol from {addr!r}: {msg_received!r}")
+        logger.info(f"Received unknown protocol from {addr!r}: {data}")
         # msg_response = str (config['RESPONSE']['unclear'] + EMPTY_S)
         msg_response = f"{config['RESPONSE']['unclear']}{EMPTY_S}"
     else:    
         # If there is no end value '\r\n\r\n' in the first part of the received request, continue reading the request.
         if not data.endswith(EMPTY_S_B):
             while True:
-                data = await reader.read(1024)
-                data += data
+                data += await reader.read(1024)
                 # We continue to read the request, wait for the value of the end '\r\n\r\n' and insure against a broken connection.
                 if not data or data.endswith(EMPTY_S_B):
                     break
