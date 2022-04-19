@@ -17,13 +17,14 @@ logger.add("debug.log", format="{time} {level} {message}", level="DEBUG", rotati
 # Line endings
 END_S = '\r\n'
 EMPTY_S = '\r\n\r\n'
+# Conversion to bytes
 EMPTY_S_B = EMPTY_S.encode(config['SETTINGS']['ENCODING'])
 GET_B = config['REQUEST_METHODS']['GET'].encode(config['SETTINGS']['ENCODING'])
 DELETE_B = config['REQUEST_METHODS']['DELETE'].encode(config['SETTINGS']['ENCODING'])
 WRITE_B = config['REQUEST_METHODS']['WRITE'].encode(config['SETTINGS']['ENCODING'])
 
 
-async def write_to_file (phone_book: str, data : str) -> str:
+async def write_to_file (phone_book: str, data : dict) -> json:
     """Writes the new name and phone number (or just the phone number if the name exists) to the phonebook file."""
     name_phone = json.dumps(data, ensure_ascii=False)
     logger.info(f'name_phone:{name_phone!r}')
@@ -31,7 +32,7 @@ async def write_to_file (phone_book: str, data : str) -> str:
         await f.write(name_phone)
 
 
-async def read_from_file(name_file: str) -> str or None:
+async def read_from_file(name_file: str) -> json or None:
     """"Reads the phone by name from the phonebook file."""
     async with aiofiles.open(name_file, mode='r') as f:
         data_from_phone_book = await f.read()
@@ -82,7 +83,7 @@ async def delete_name(name: str) -> str:
     return message_for_delete_name
 
 
-async def write_name_phone(name: str, data_phone: str) -> str:
+async def write_name_phone(name: str, data_phone: str):
     """Writes a new name with a phone number or a new phone number with an existing name in the phone book"""
     #Gathering all request phones into a tuple.
     data_from_name_phone = await read_from_file('name_phone.json')
@@ -113,7 +114,7 @@ async def write_name_phone(name: str, data_phone: str) -> str:
         await write_to_file('name_phone.json', data_to_file)
 
 
-async def parse_message_received(message_received: str) -> str:
+async def parse_message_received(message_received: str) -> tuple[str, str]:
     """Get from the query string: method, name, phone."""
     name_for_phone = re.split(r' ', message_received.split(config['REQUEST_METHODS']['PROTOCOL'])[0], \
          maxsplit = 1)[-1].strip().upper()
@@ -140,7 +141,7 @@ async def make_msg_to_client_if_delete(name: str) -> str:
     return message
 
 
-async def make_msg_to_client_if_write(name: str, data_phone) -> str:
+async def make_msg_to_client_if_write(name: str, data_phone: str) -> str:
     """Make message to the client if method in the request is 'ЗОПИШИ'."""
     await write_name_phone(name, data_phone)
     message = f"{config['RESPONSE']['normally']}{EMPTY_S}"
@@ -148,7 +149,7 @@ async def make_msg_to_client_if_write(name: str, data_phone) -> str:
     return message
 
 
-async def make_msg_to_client(parse_tuple: tuple) -> tuple:
+async def make_msg_to_client(parse_tuple: tuple[str, str]) -> str:
     """Prepares message to the client."""
     data_conf = config['REQUEST_METHODS']
     method = parse_tuple[0]
@@ -161,7 +162,7 @@ async def make_msg_to_client(parse_tuple: tuple) -> tuple:
     return message_to_client
 
 
-async def make_response_to_client(msg_from_vragi_vezde, msg_received):
+async def make_response_to_client(msg_from_vragi_vezde: str, msg_received: str) -> str:
     "If the 'vragi-vezde.to.digital' server allowed the response, then we produce a full response. If the server received a refusal, then instead of a response, we send only a refusal."
     if msg_from_vragi_vezde == f"{config['INSPECTOR']['response_yes']}{EMPTY_S}":
         parse_tuple = await parse_message_received(msg_received)
@@ -203,7 +204,7 @@ async def check_request_client(raw_request: str) -> bool:
     return correctness_request
 
 
-async def response_preparation(msg_received: str):
+async def response_preparation(msg_received: str) ->str:
     """Preparing a response to a request."""
     # If the request is correct, we produce a response 'msg_response'.
     if await check_request_client(msg_received):
@@ -215,13 +216,13 @@ async def response_preparation(msg_received: str):
     return msg_response
 
 
-async def check_first_100_bytes(data):
+async def check_first_100_bytes(data: bytes) -> bool:
     "Checks for protocol methods."
     if data.startswith(GET_B) or data.startswith(DELETE_B) or data.startswith(WRITE_B):
         return True
 
 
-async def reciev_send_client(reader: asyncio.streams.StreamReader, writer):
+async def reciev_send_client(reader: asyncio.streams.StreamReader, writer: asyncio.streams.StreamWriter):
     """Receives a request, if the request is correct, then sends it for preparing a response to a request."""
     data = await reader.read(100)
     # Get the first part of the request.                             
@@ -243,9 +244,10 @@ async def reciev_send_client(reader: asyncio.streams.StreamReader, writer):
             msg_received = data.decode(config['SETTINGS']['ENCODING'])
             logger.info(f"Received more than 100 bytes from {addr!r}: {msg_received!r}")
             msg_response = await response_preparation(msg_received)
-        msg_received = data.decode(config['SETTINGS']['ENCODING'])
-        logger.info(f"Received from {addr!r}: {msg_received!r}")
-        msg_response = await response_preparation(msg_received)    
+        else:
+            msg_received = data.decode(config['SETTINGS']['ENCODING'])
+            logger.info(f"Received from {addr!r}: {msg_received!r}")
+            msg_response = await response_preparation(msg_received)    
     # Submitting a response 'msg_response'.
     writer.write(msg_response.encode(config['SETTINGS']['ENCODING']))
     await writer.drain()
