@@ -75,9 +75,10 @@ The code is implemented according to the principles of asynchrony.
     specify in the code: *server = await asyncio.start_server(handle_echo, **'vragi-vezde', 5000**)*
     <br>
 * start the command processing server: **python server_rksok.py**
-    specify in config: [PROXY] IP = **127.0.0.1**, PORT = **8000**; [INSPECTOR] DOMAIN = **vragi-vezde**, PORT = **5000**
+    specify in config: [PROXY] IP = **127.0.0.1**, PORT = **8888**; [INSPECTOR] DOMAIN = **vragi-vezde**, PORT = **5000**
     <br>
-* run the client application *rksok_client.py* for queries: **python rksok_client.py 127.0.0.1 8000**
+* run the client application *rksok_client.py* for queries: **python rksok_client.py 127.0.0.1 8888**
 
 #### Web request:
-* run the client application for web-queries: **python rksok_client.py standardrksok.ru 8000**
+The NGINX server will accept the request on port: 9000.
+* run the client application for web-queries: **python rksok_client.py standardrksok.ru 9000**
